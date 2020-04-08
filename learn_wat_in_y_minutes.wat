@@ -6,15 +6,18 @@
   (type $t1 (func (param i32 i64) (result f32)))
   (type $t2 (func (result i32)))
 
+  ;; imports must occur before all non-import definitions
   ;; import functions from outside, module name + function name
   ;; (import "env" "puts" (func $puts (param i32) (result i32)))
   (import "env" "puts" (func $puts (type 0)))
   ;; improt global
-  (import "env" "globals" (global $g1 (mut i32)))
+  (import "env" "globals" (global $glb1 (mut i32)))
   ;; import table
   ;;(import "env" "table")
   ;; import memory
-  ;;(import "env" "memory")
+  ;; 1 indicates at least 1 page (64KB)
+  ;; only one memory block allowed
+  (import "env" "memory" (memory $mem1 1 1 shared))
 
   ;; it is a funciton without any argument and always return 42
   ;; result is a keyword
@@ -28,16 +31,15 @@
     ;; local.get will push the value to the stack
     ;; local.get 0 will get the first param i32
     ;; local.set will pop the value from the stack
-    local.get 0
     ;; call inside with its index or name
     ;; its return value is on the stack
-    call 0
+    (call 0 (local.get 0))
 
-    local.get 0
-    f32.const 3.14
+    ;; local.get 0
+    ;; f32.const 3.14
     ;; call inside with its index or name
     ;; its return value is on the stack
-    call $f2
+    (call $f2 (local.get 0) (f32.const 3.14))
 
     ;; local.get 1 will get the second param i64
     local.get 1
@@ -56,11 +58,9 @@
     (local $l1 i32)
     (local $l2 f32)
     ;; $l1 = $p1
+    (local.set $l1 (local.get $p1))
     ;; $l2 = $p2
-    local.get $p1
-    local.set $l1
-    local.get $p2
-    local.set $l2
+    (local.set $l2 (local.get $p2))
 
     ;; (i32)($l2) + $l1
     local.get $l2
@@ -107,6 +107,23 @@
   ;; (i32.const 1) specifies at what index in the table
   ;; references start to be populated.
   (elem 0 (i32.const 1) 1 $f2 $f3)
+
+  (func $log (result i32)
+    (call $puts (i32.const 10))
+    return
+  )
+
+  (func $incGlobal
+    (global.set $glb1
+      (i32.add (global.get $glb1) (i32.const 3)))
+  )
+
+  ;; when a module has an imported linear memory,
+  ;; its data segments are copied into the linear memory
+  ;; when the module is instantiated.
+  (data $d1 (i32.const 10) "Hi")
+  (data $d2 (i32.const 20) "Data")
+  (data $d3 (i32.const 30) "Section")
 
   ;; export $f3
   (export "function_3" (func $f3))
